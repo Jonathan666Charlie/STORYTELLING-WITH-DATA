@@ -1,0 +1,182 @@
+---
+title: "Grocery Analysis"
+output:
+  word_document: default
+  html_document: default
+date: "2024-11-22"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+
+https://github.com/fivethirtyeight/data/tree/master/police-killings
+
+
+```{r}
+library(readr)
+police_data <- read_csv("police_killings.csv")
+
+```
+
+```{r}
+# Check the structure of the dataset
+str(police_data)
+
+# Check for missing values
+summary(police_data)
+
+# Check the column names
+colnames(police_data)
+
+```
+
+## Cleaning
+
+```{r}
+# Convert columns to numeric where necessary
+police_data$age <- as.numeric(police_data$age)
+police_data$share_white <- as.numeric(police_data$share_white)
+police_data$share_black <- as.numeric(police_data$share_black)
+police_data$share_hispanic <- as.numeric(police_data$share_hispanic)
+police_data$p_income <- as.numeric(police_data$p_income)
+police_data$h_income <- as.numeric(police_data$h_income)
+
+# Check for missing values again after conversion
+summary(police_data)
+
+# Handle missing values - For example, remove rows with missing income data
+police_data_clean <- police_data[!is.na(police_data$h_income), ]
+
+
+
+```
+
+```{r}
+# Basic EDA: Check the distribution of raceethnicity
+table(police_data_clean$raceethnicity)
+
+
+```
+
+```{r}
+# Investigate cause of death
+table(police_data_clean$cause)
+
+
+```
+
+```{r}
+# Explore the income distribution
+hist(police_data_clean$h_income, main = "Income Distribution", xlab = "Household Income", col = "blue", breaks = 20)
+```
+
+
+# Research Questions
+
+
+
+### 1. **Geographic Patterns and Police Killings** (Exploratory Analysis)
+   - **RQ4**: *Is there a regional variation in the number of police killings across different U.S. states?*
+     - **Analysis Approach**: 
+       - **Descriptive Statistics**: Calculate the total number of police killings by state and plot the distribution.
+       - **Visualizations**: Create bar charts or maps to visualize the frequency of police killings across states.
+       - **Chi-Square Test**: To check if the distribution of police killings is independent of regions or states.
+       - **Key Variables**: `state`, `year`, `name` (for counts), `gender`, `raceethnicity`.
+
+### 2. **Socio-Economic Factors and Police Killings** (Regression Analysis)
+   - **RQ9**: *Is there a relationship between income levels (e.g., personal, household, or county income) and the rate of police killings in different areas?*
+     - **Analysis Approach**:
+       - **Regression Analysis**: Perform a linear regression to analyze the relationship between income and the rate of police killings in a region.
+       - **Variables**:
+         - **Independent Variables**: `p_income` (personal income), `h_income` (household income), `county_income` (county income).
+         - **Dependent Variable**: `pop` (population of the area or the number of police killings).
+         - **Control Variables**: `raceethnicity`, `state`, `armed`.
+       - **Model**: Use a multiple linear regression model to estimate how income levels (individual, household, or county) influence the frequency of police killings, controlling for other factors like race and whether the individual was armed.
+       - **Hypothesis**: Higher income areas will have fewer police killings due to different levels of law enforcement resources, socioeconomic stability, or community-police relationships.
+
+
+
+## Summary statistics
+
+```{r}
+# Example: Assuming 'data' is a dataframe with a column 'state'
+# If you haven't defined 'data' yet, create a dummy dataframe for testing
+
+
+# List of left-wing (Democratic-leaning) and right-wing (Republican-leaning) states
+left_wing_states <- c("CA", "NY", "IL", "WA", "OR", "CO", "MA", "MI", "PA", "MN", "VA", "NJ", "MD", "CT", "RI", "VT", "HI")
+right_wing_states <- c("TX", "FL", "GA", "OH", "AZ", "NC", "SC", "WI", "MO", "IN", "KY", "LA", "AL", "OK", "TN", "MS", "AR")
+
+# Create a new variable 'state_category' based on the political leaning
+police_data_clean$state_category <- ifelse(police_data_clean$state %in% left_wing_states, "Left-Wing", 
+                              ifelse(police_data_clean$state  %in% right_wing_states, "Right-Wing", "Unaffiliated"))
+
+
+```
+
+
+
+```{r}
+library(gtsummary)
+
+library(gtsummary)
+
+# Example: Summarizing police killings dataset with key variables (age, gender, raceethnicity, income)
+table2 <- police_data_clean |> 
+  tbl_summary(
+    include = c(age,gender,  raceethnicity, p_income, h_income, county_income),  # Variables to summarize
+    by = state_category,  # Split the table by state
+    missing = "no"  # Do not list missing data separately
+  ) |> 
+  add_n() |>  # Add column with total number of non-missing observations
+  add_p() |>  # Test for a difference between groups (state in this case)
+  modify_header(label = "**Variable**") |>  # Update column header
+  bold_labels()  # Bold labels for clarity
+
+# View the summary table
+table2
+
+
+```
+
+
+
+
+
+
+
+
+
+```{r}
+# Fit a full model with all relevant predictors
+full_model <- lm(pop ~ p_income + h_income + county_income + raceethnicity + armed + state_category, data = police_data_clean)
+
+# Perform stepwise regression (both forward and backward)
+stepwise_model <- step(full_model, direction = "both")
+
+# Summary of the final model after stepwise selection
+summary(stepwise_model)
+
+```
+
+
+```{r}
+# Residuals vs Fitted values plot
+plot(stepwise_model, which = 1)
+
+# Normal Q-Q plot for residuals
+plot(stepwise_model, which = 2)
+
+# Check for multicollinearity using VIF (Variance Inflation Factor)
+library(car)
+vif(stepwise_model)
+
+# Check residuals for normality
+shapiro.test(resid(stepwise_model))
+
+```
+
